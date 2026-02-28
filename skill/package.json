@@ -1,0 +1,13 @@
+{
+  "name": "jun-sense-skill",
+  "version": "1.0.0",
+  "description": "OpenClaw skill — read Jun's phone location and battery via self-hosted relay",
+  "private": true,
+  "main": "jun-sense-connect.js",
+  "bin": {
+    "jun-sense-connect": "./jun-sense-connect.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
