@@ -72,7 +72,7 @@ export async function start() {
         timeInterval: POLL_INTERVAL_MS,
         distanceInterval: 10,
         foregroundService: {
-          notificationTitle: 'Jun Sense',
+          notificationTitle: 'Eva Locate',
           notificationBody: 'Sharing location with Eva',
           notificationColor: '#1a1a2e',
         },

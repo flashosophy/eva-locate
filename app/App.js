@@ -1,5 +1,5 @@
 /**
- * App.js — Jun Sense
+ * App.js — Eva Locate
  * Single screen: connection status, current readings, pair code generator.
  */
 
@@ -127,7 +127,7 @@ export default function App() {
 
       {/* Header */}
       <View style={s.header}>
-        <Text style={s.title}>Jun Sense</Text>
+        <Text style={s.title}>Eva Locate</Text>
         <View style={s.statusRow}>
           <View style={[s.dot, { backgroundColor: statusColor }]} />
           <Text style={[s.statusText, { color: statusColor }]}>{statusLabel}</Text>

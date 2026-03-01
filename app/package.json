@@ -1,5 +1,5 @@
 {
-  "name": "jun-sense",
+  "name": "eva-locate",
   "version": "1.0.0",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
@@ -19,7 +19,8 @@
     "react-native": "0.83.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.24.0"
+    "@babel/core": "^7.24.0",
+    "babel-preset-expo": "~55.0.10"
   },
   "private": true
 }
