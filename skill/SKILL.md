@@ -1,18 +1,26 @@
 ---
 name: eva-mobile
-description: Read Jun's last known GPS location and battery from Eva Mobile via EVA Core. Use this when location context is required for planning, coordination, or check-ins.
+description: Read Jun's last known GPS location and battery from Eva Mobile via EVA Core.
 metadata: {"openclaw":{"requires":{"bins":["node"]},"emoji":"📍","homepage":"https://github.com/flashosophy/eva-mobile"}}
 ---
 
 # Eva Mobile Locate Skill
 
-Eva Mobile continuously publishes location updates to EVA Core.
+Eva Mobile publishes location updates directly to EVA Core.
 
-There is no pairing flow anymore.
+No pairing step exists.
 
-- No pair code
-- No focus-only WebSocket relay
-- No `jun-sense-session.json`
+- Never ask the user to "generate pair code"
+- Never request focus-only relay setup
+- Never expect a local pairing/session file
+
+Primary commands:
+
+```bash
+node {baseDir}/eva-mobile-locate.js status
+node {baseDir}/eva-mobile-locate.js read eva-mobile://location
+node {baseDir}/eva-mobile-locate.js read eva-mobile://battery
+```
 
 Run commands using `{baseDir}/eva-mobile-locate.js`.
 
@@ -26,15 +34,7 @@ All output is JSONL (one JSON object per line).
 
 ## Commands
 
-### Pair (compatibility no-op)
-
-```bash
-node {baseDir}/eva-mobile-locate.js pair
-```
-
-Returns success with `pairingRequired: false`.
-
-### Check status
+### Check status (first choice)
 
 ```bash
 node {baseDir}/eva-mobile-locate.js status
@@ -43,21 +43,15 @@ node {baseDir}/eva-mobile-locate.js status
 Examples:
 
 ```json
-{"type":"status","connected":true,"available":true,"pairingRequired":false,"userId":"user-jun","staleSeconds":24,"warning":null}
-{"type":"status","connected":true,"available":false,"pairingRequired":false,"reason":"location_not_found","userId":"user-jun"}
-{"type":"status","connected":false,"available":false,"pairingRequired":false,"reason":"request_failed","error":"..."}
+{"type":"status","connected":true,"available":true,"userId":"user-jun","staleSeconds":24,"warning":null}
+{"type":"status","connected":true,"available":false,"reason":"location_not_found","userId":"user-jun"}
+{"type":"status","connected":false,"available":false,"reason":"request_failed","error":"..."}
 ```
 
 ### Read location
 
 ```bash
 node {baseDir}/eva-mobile-locate.js read eva-mobile://location
-```
-
-Legacy URI alias is also supported:
-
-```bash
-node {baseDir}/eva-mobile-locate.js read jun://location
 ```
 
 Example:
@@ -72,12 +66,6 @@ Example:
 node {baseDir}/eva-mobile-locate.js read eva-mobile://battery
 ```
 
-Legacy URI alias is also supported:
-
-```bash
-node {baseDir}/eva-mobile-locate.js read jun://battery
-```
-
 Example:
 
 ```json
@@ -90,21 +78,17 @@ Example:
 node {baseDir}/eva-mobile-locate.js list-resources
 ```
 
-## Legacy command compatibility
-
-Old command names continue to work:
-
-```bash
-node {baseDir}/jun-sense-connect.js pair
-node {baseDir}/jun-sense-connect.js status
-node {baseDir}/jun-sense-connect.js read jun://location
-```
-
-`jun-sense-connect` is now a compatibility wrapper around `eva-mobile-locate`.
-
 ## Behavioral Rules
 
 1. Query location only when relevant to Jun's request.
-2. If `available: false`, explain that the app has not published a fix yet.
-3. If `staleSeconds > 300`, include a stale-data warning.
-4. If `connected: false`, verify EVA Core reachability and service token config.
+2. Never ask for a pair code and never instruct a pairing flow.
+3. If `available: false`, explain that the app has not published a fix yet.
+4. If `staleSeconds > 300`, include a stale-data warning.
+5. If `connected: false`, verify EVA Core reachability and service token config.
+
+## Troubleshooting when app is open but not locatable
+
+1. Run `status` first; if `reason` is `location_not_found`, no location fix has reached EVA Core yet.
+2. If `staleSeconds` is high, treat data as old and report it as stale instead of "live".
+3. Confirm mobile location permissions allow background access.
+4. Confirm the app is logged in and sensor/location publishing has started.

@@ -4,7 +4,6 @@
  * OpenClaw skill client for EVA Core location data published by Eva Mobile.
  *
  * Usage:
- *   eva-mobile-locate.js pair
  *   eva-mobile-locate.js status
  *   eva-mobile-locate.js read <uri>
  *   eva-mobile-locate.js list-resources
@@ -25,8 +24,8 @@ const EVA_CORE_SERVICE_TOKEN = String(
 ).trim();
 const EVA_CORE_LOCATION_USER_ID = String(process.env.EVA_CORE_LOCATION_USER_ID || 'user-jun').trim();
 
-const LOCATION_URI_ALIASES = new Set(['eva-mobile://location', 'jun://location']);
-const BATTERY_URI_ALIASES = new Set(['eva-mobile://battery', 'jun://battery']);
+const LOCATION_URI = 'eva-mobile://location';
+const BATTERY_URI = 'eva-mobile://battery';
 
 function emit(obj) {
   process.stdout.write(JSON.stringify(obj) + '\n');
@@ -131,7 +130,6 @@ async function cmdStatus() {
         type: 'status',
         connected: true,
         available: false,
-        pairingRequired: false,
         reason: 'location_not_found',
         userId: EVA_CORE_LOCATION_USER_ID,
       });
@@ -146,7 +144,6 @@ async function cmdStatus() {
       type: 'status',
       connected: true,
       available: true,
-      pairingRequired: false,
       userId: EVA_CORE_LOCATION_USER_ID,
       staleSeconds,
       warning: staleSeconds != null && staleSeconds > 300
@@ -158,20 +155,10 @@ async function cmdStatus() {
       type: 'status',
       connected: false,
       available: false,
-      pairingRequired: false,
       reason: 'request_failed',
       error: err.message,
     });
   }
-}
-
-function cmdPair() {
-  emit({
-    type: 'pair',
-    success: true,
-    pairingRequired: false,
-    message: 'Pairing is no longer required. Eva Mobile publishes location directly to EVA Core.',
-  });
 }
 
 async function cmdRead(uri) {
@@ -181,8 +168,8 @@ async function cmdRead(uri) {
   }
 
   let requestedType = null;
-  if (LOCATION_URI_ALIASES.has(normalizedUri)) requestedType = 'location';
-  if (BATTERY_URI_ALIASES.has(normalizedUri)) requestedType = 'battery';
+  if (normalizedUri === LOCATION_URI) requestedType = 'location';
+  if (normalizedUri === BATTERY_URI) requestedType = 'battery';
   if (!requestedType) {
     die('UNKNOWN_URI', `Unknown URI: ${normalizedUri}`);
   }
@@ -192,7 +179,7 @@ async function cmdRead(uri) {
     if (!found) {
       emit({
         type: 'resource',
-        uri: requestedType === 'location' ? 'eva-mobile://location' : 'eva-mobile://battery',
+        uri: requestedType === 'location' ? LOCATION_URI : BATTERY_URI,
         data: {
           available: false,
           reason: 'No location record available yet',
@@ -207,7 +194,7 @@ async function cmdRead(uri) {
 
     emit({
       type: 'resource',
-      uri: requestedType === 'location' ? 'eva-mobile://location' : 'eva-mobile://battery',
+      uri: requestedType === 'location' ? LOCATION_URI : BATTERY_URI,
       data,
     });
   } catch (err) {
@@ -220,13 +207,13 @@ function cmdListResources() {
     type: 'resources',
     resources: [
       {
-        uri: 'eva-mobile://location',
+        uri: LOCATION_URI,
         name: 'Location',
         description: 'Last known GPS location from Eva Mobile',
         mimeType: 'application/json',
       },
       {
-        uri: 'eva-mobile://battery',
+        uri: BATTERY_URI,
         name: 'Battery',
         description: 'Last known battery level from Eva Mobile',
         mimeType: 'application/json',
@@ -239,9 +226,6 @@ async function main() {
   const [, , command, ...rest] = process.argv;
 
   switch (command) {
-    case 'pair':
-      cmdPair();
-      break;
     case 'status':
       await cmdStatus();
       break;
@@ -254,7 +238,6 @@ async function main() {
     default:
       die('NO_COMMAND', [
         'Usage: eva-mobile-locate <command>',
-        '  pair',
         '  status',
         '  read <uri>',
         '    eva-mobile://location',
