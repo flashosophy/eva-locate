@@ -99,7 +99,7 @@ const s = StyleSheet.create({
   },
   endpoint: {
     marginTop: 4,
-    color: '#1e3a5f',
+    color: '#475569',
     fontSize: 11,
     fontFamily: Platform.OS === 'android' ? 'monospace' : 'Courier',
   },
