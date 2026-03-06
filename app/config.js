@@ -2,7 +2,7 @@ const DEFAULT_EVA_CORE_URL = 'https://eva.tail5afb5a.ts.net';
 const DEFAULT_EVA_WEB_PATH = '/eva-orchestrator/chat';
 const DEFAULT_EVA_WEB_URL = `${DEFAULT_EVA_CORE_URL}${DEFAULT_EVA_WEB_PATH}`;
 const DEFAULT_SOCKET_PATH = '/socket.io';
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 
 const INVALID_ENV_VALUES = new Set(['undefined', 'null']);
 

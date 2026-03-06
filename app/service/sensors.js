@@ -15,6 +15,15 @@ const POLL_INTERVAL_MS = 30_000;
 let _snapshot = {
   location: null, // { lat, lng, accuracy, altitude, speed, heading, ts }
   battery: null, // { level, charging, ts }
+  meta: {
+    started: false,
+    foregroundPermission: 'unknown',
+    backgroundPermission: 'unknown',
+    backgroundUpdatesActive: false,
+    lastLocationAt: null,
+    lastBatteryAt: null,
+    lastError: '',
+  },
 };
 
 let _pollTimer = null;
@@ -39,13 +48,30 @@ function _emitUpdate(kind) {
   }
 }
 
+function _updateMeta(patch) {
+  _snapshot.meta = {
+    ..._snapshot.meta,
+    ...patch,
+  };
+}
+
 // --- Background task definition (must be at module level) ---
 
 TaskManager.defineTask(LOCATION_TASK, ({ data, error }) => {
-  if (error) return;
+  if (error) {
+    _updateMeta({
+      lastError: String(error.message || error || 'Background location task failed'),
+    });
+    _emitUpdate('status');
+    return;
+  }
   if (!data?.locations?.length) return;
   const loc = data.locations[data.locations.length - 1];
   _snapshot.location = _parseLocation(loc);
+  _updateMeta({
+    lastLocationAt: loc.timestamp || Date.now(),
+    lastError: '',
+  });
   _emitUpdate('location');
 });
 
@@ -67,7 +93,12 @@ export function subscribeUpdates(listener) {
 }
 
 export function getSnapshot() {
-  return { ..._snapshot };
+  return {
+    ..._snapshot,
+    meta: {
+      ..._snapshot.meta,
+    },
+  };
 }
 
 export function isStarted() {
@@ -77,12 +108,29 @@ export function isStarted() {
 export async function start() {
   if (_started) return;
 
+  _updateMeta({
+    lastError: '',
+  });
+  _emitUpdate('status');
+
   // Request permissions
   const fgPerm = await Location.requestForegroundPermissionsAsync();
+  _updateMeta({
+    foregroundPermission: String(fgPerm?.status || 'unknown'),
+  });
+  _emitUpdate('status');
   if (fgPerm.status !== 'granted') {
+    _updateMeta({
+      lastError: 'Location permission denied',
+    });
+    _emitUpdate('status');
     throw new Error('Location permission denied');
   }
   const bgPerm = await Location.requestBackgroundPermissionsAsync();
+  _updateMeta({
+    backgroundPermission: String(bgPerm?.status || 'unknown'),
+  });
+  _emitUpdate('status');
 
   // Start foreground location subscription for immediate updates
   _locationSubscription = await Location.watchPositionAsync(
@@ -93,6 +141,10 @@ export async function start() {
     },
     (loc) => {
       _snapshot.location = _parseLocation(loc);
+      _updateMeta({
+        lastLocationAt: loc.timestamp || Date.now(),
+        lastError: '',
+      });
       _emitUpdate('location');
     }
   );
@@ -114,12 +166,20 @@ export async function start() {
         showsBackgroundLocationIndicator: true,
       });
     }
+    _updateMeta({
+      backgroundUpdatesActive: true,
+    });
+    _emitUpdate('status');
   }
 
   // Poll battery on an interval
   await _pollBattery();
   _pollTimer = setInterval(_pollBattery, POLL_INTERVAL_MS);
   _started = true;
+  _updateMeta({
+    started: true,
+  });
+  _emitUpdate('status');
 }
 
 export async function stop() {
@@ -139,6 +199,11 @@ export async function stop() {
   }
 
   _started = false;
+  _updateMeta({
+    started: false,
+    backgroundUpdatesActive: false,
+  });
+  _emitUpdate('status');
 }
 
 // --- Internal ---
@@ -161,11 +226,15 @@ async function _pollBattery() {
       Battery.getBatteryLevelAsync(),
       Battery.getBatteryStateAsync(),
     ]);
+    const now = Date.now();
     _snapshot.battery = {
       level: Math.round(level * 100),
       charging: state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL,
-      ts: Date.now(),
+      ts: now,
     };
+    _updateMeta({
+      lastBatteryAt: now,
+    });
     _emitUpdate('battery');
   } catch (_) {}
 }

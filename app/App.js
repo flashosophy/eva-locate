@@ -11,9 +11,20 @@ import {
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { WebView } from 'react-native-webview';
 
+import DiagnosticsPanel from './components/DiagnosticsPanel';
 import { APP_VERSION, EVA_WEB_URL } from './config';
-import { startLocationPusher, stopLocationPusher } from './service/location-pusher';
-import { connectSocket, disconnectSocket } from './service/socket';
+import {
+  getLocationPushStatus,
+  startLocationPusher,
+  stopLocationPusher,
+  subscribeLocationPushStatus,
+} from './service/location-pusher';
+import {
+  connectSocket,
+  disconnectSocket,
+  getSocketStatus,
+  subscribeSocketStatus,
+} from './service/socket';
 import * as Sensors from './service/sensors';
 import { clearAuthSession, loadAuthSession, saveAuthSession } from './store/auth';
 
@@ -150,7 +161,12 @@ export default function App() {
   const [webViewKey, setWebViewKey] = useState(1);
   const [webError, setWebError] = useState('');
   const [bridgeError, setBridgeError] = useState('');
+  const [sensorError, setSensorError] = useState('');
+  const [socketError, setSocketError] = useState('');
   const [currentPath, setCurrentPath] = useState('');
+  const [sensorSnapshot, setSensorSnapshot] = useState(() => Sensors.getSnapshot());
+  const [socketStatus, setSocketStatus] = useState(() => getSocketStatus());
+  const [pushStatus, setPushStatus] = useState(() => getLocationPushStatus());
 
   const updateSession = useCallback(async (nextSession) => {
     const nextToken = String(nextSession?.token || '').trim();
@@ -177,11 +193,34 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const unsubscribeSensors = Sensors.subscribeUpdates((_kind, snapshot) => {
+      setSensorSnapshot(snapshot);
+    });
+    const unsubscribeSocket = subscribeSocketStatus((status) => {
+      setSocketStatus(status);
+    });
+    const unsubscribePush = subscribeLocationPushStatus((status) => {
+      setPushStatus(status);
+    });
+
+    return () => {
+      unsubscribeSensors();
+      unsubscribeSocket();
+      unsubscribePush();
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function bootstrap() {
       try {
-        await Sensors.start().catch(() => {});
+        try {
+          await Sensors.start();
+          setSensorError('');
+        } catch (err) {
+          setSensorError(String(err?.message || 'Location setup failed'));
+        }
 
         const stored = await loadAuthSession();
         if (!cancelled && stored?.token) {
@@ -208,6 +247,7 @@ export default function App() {
   useEffect(() => {
     const token = String(authSession?.token || '').trim();
     if (!token) {
+      setSocketError('');
       stopLocationPusher();
       disconnectSocket();
       return;
@@ -215,12 +255,19 @@ export default function App() {
 
     const socket = connectSocket(token);
 
-    const handleConnectError = () => {};
+    const handleConnect = () => {
+      setSocketError('');
+    };
+    const handleConnectError = (error) => {
+      setSocketError(String(error?.message || 'Realtime connection failed'));
+    };
+    socket.on('connect', handleConnect);
     socket.on('connect_error', handleConnectError);
 
     startLocationPusher();
 
     return () => {
+      socket.off('connect', handleConnect);
       socket.off('connect_error', handleConnectError);
       stopLocationPusher();
       disconnectSocket();
@@ -253,6 +300,10 @@ export default function App() {
   const showLoginVersion = useMemo(() => {
     return isLoginPath(currentPath);
   }, [currentPath]);
+
+  const issueMessage = webError || bridgeError;
+  const issueTitle = 'Connection issue';
+  const canReloadWebView = Boolean(webError || bridgeError);
 
   if (booting) {
     return (
@@ -304,20 +355,22 @@ export default function App() {
         />
       </View>
 
-      {(webError || bridgeError) ? (
+      {issueMessage ? (
         <View style={s.errorOverlay}>
-          <Text style={s.errorTitle}>Connection issue</Text>
-          <Text style={s.errorText}>{webError || bridgeError}</Text>
-          <Pressable
-            style={s.retryButton}
-            onPress={() => {
-              setWebError('');
-              setBridgeError('');
-              setWebViewKey((value) => value + 1);
-            }}
-          >
-            <Text style={s.retryText}>Reload</Text>
-          </Pressable>
+          <Text style={s.errorTitle}>{issueTitle}</Text>
+          <Text style={s.errorText}>{issueMessage}</Text>
+          {canReloadWebView ? (
+            <Pressable
+              style={s.retryButton}
+              onPress={() => {
+                setWebError('');
+                setBridgeError('');
+                setWebViewKey((value) => value + 1);
+              }}
+            >
+              <Text style={s.retryText}>Reload</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -326,6 +379,15 @@ export default function App() {
           <Text style={s.versionText}>Eva Mobile v{APP_VERSION}</Text>
         </View>
       ) : null}
+
+      <DiagnosticsPanel
+        authSession={authSession}
+        sensorSnapshot={sensorSnapshot}
+        sensorError={sensorError}
+        socketStatus={socketStatus}
+        socketError={socketError}
+        pushStatus={pushStatus}
+      />
     </View>
   );
 }

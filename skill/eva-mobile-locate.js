@@ -19,6 +19,11 @@
 
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
+loadFallbackEnv();
+
 const EVA_CORE_URL = String(process.env.EVA_CORE_URL || 'http://127.0.0.1:3456').trim().replace(/\/+$/, '');
 const EVA_CORE_SERVICE_TOKEN = String(
   process.env.EVA_CORE_SERVICE_TOKEN
@@ -44,6 +49,58 @@ const NEARBY_ALIAS_URI = 'eva-mobile://nearby';
 const NEARBY_RESTAURANTS_URI = 'eva-mobile://nearby/restaurants';
 const NEARBY_STORES_URI = 'eva-mobile://nearby/stores';
 const NEARBY_GAS_URI = 'eva-mobile://nearby/gas';
+
+function loadFallbackEnv() {
+  const candidates = [
+    path.resolve(__dirname, '../../eva-core/.env'),
+    path.resolve(process.cwd(), '../eva-core/.env'),
+  ];
+
+  for (const filePath of candidates) {
+    let raw = '';
+    try {
+      raw = fs.readFileSync(filePath, 'utf8');
+    } catch (_) {
+      continue;
+    }
+
+    applyEnvFile(raw);
+    return;
+  }
+}
+
+function applyEnvFile(raw) {
+  for (const line of String(raw || '').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+
+    const key = String(match[1] || '').trim();
+    if (!key || String(process.env[key] || '').trim()) continue;
+
+    process.env[key] = parseEnvValue(match[2]);
+  }
+}
+
+function parseEnvValue(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+
+  if (
+    (value.startsWith('"') && value.endsWith('"'))
+    || (value.startsWith('\'') && value.endsWith('\''))
+  ) {
+    const quote = value[0];
+    const inner = value.slice(1, -1);
+    return quote === '"'
+      ? inner.replace(/\\n/g, '\n').replace(/\\"/g, '"')
+      : inner;
+  }
+
+  return value.replace(/\s+#.*$/, '').trim();
+}
 
 function toBoundedInteger(value, fallback = null, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
   const parsed = Number(value);
